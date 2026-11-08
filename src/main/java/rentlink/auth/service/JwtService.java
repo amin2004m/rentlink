@@ -72,6 +72,15 @@ public class JwtService {
         }
     }
 
+    public boolean isAccessTokenValid(String token, String expectedUserId) {
+        try {
+            return isTokenValid(token, expectedUserId)
+                    && TOKEN_TYPE_ACCESS.equals(extractTokenType(token));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private <T> T extractClaim(String token, Function<Claims, T> resolver) {
         Claims claims = Jwts.parser()
                 .verifyWith(signingKey)

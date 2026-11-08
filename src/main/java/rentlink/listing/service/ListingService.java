@@ -32,7 +32,7 @@ public class ListingService {
     MongoTemplate mongoTemplate;
 
     public List<ListingResponse> getAllListings() {
-        return listingRepository.findAll().stream()
+        return listingRepository.findByStatus(Status.ACTIVE).stream()
                 .map(this::toResponse)
                 .toList();
     }
@@ -42,6 +42,12 @@ public class ListingService {
     }
 
     public List<ListingResponse> getByOwnerId(String ownerId) {
+        return listingRepository.findByOwnerIdAndStatus(ownerId, Status.ACTIVE).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    public List<ListingResponse> getMyListings(String ownerId) {
         return listingRepository.findByOwnerId(ownerId).stream()
                 .map(this::toResponse)
                 .toList();

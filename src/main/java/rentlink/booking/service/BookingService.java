@@ -3,6 +3,7 @@ package rentlink.booking.service;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import rentlink.booking.dto.BookingResponse;
 import rentlink.booking.dto.CreateBookingRequest;
@@ -12,6 +13,8 @@ import rentlink.booking.repository.BookingRepository;
 import rentlink.common.exception.BusinessException;
 import rentlink.listing.model.Listing;
 import rentlink.listing.repository.ListingRepository;
+import rentlink.notification.event.BookingStatusChangedEvent;
+import rentlink.payment.service.PaymentService;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -25,29 +28,26 @@ public class BookingService {
 
     BookingRepository bookingRepository;
     ListingRepository listingRepository;
+    PaymentService paymentService;
+    ApplicationEventPublisher eventPublisher;
 
     public BookingResponse create(String lesseeId, CreateBookingRequest request) {
 
-        // 1. Listing mövcuddurmu?
         Listing listing = listingRepository.findById(request.getListingId())
                 .orElseThrow(() -> BusinessException.notFound("LISTING_NOT_FOUND", "error.notFound"));
 
-        // 2. Lessee öz elanını kirayə götürməyə çalışmır?
         if (listing.getOwnerId().equals(lesseeId)) {
             throw BusinessException.badRequest("CANNOT_BOOK_OWN_LISTING", "error.forbidden");
         }
 
-        // 3. Listing aktiv statusdadırmı?
         if (listing.getStatus() != rentlink.listing.model.Status.ACTIVE) {
             throw BusinessException.badRequest("LISTING_NOT_ACTIVE", "error.notFound");
         }
 
-        // 4. Tarix aralığı düzgündür?
         if (!request.getEndDate().isAfter(request.getStartDate())) {
             throw BusinessException.badRequest("BOOKING_INVALID_DATE_RANGE", "booking.invalidDateRange");
         }
 
-        // 5. Həmin tarixlərdə overlap var?
         List<Booking> overlapping = bookingRepository.findOverlappingBookings(
                 request.getListingId(),
                 List.of(BookingStatus.REQUESTED, BookingStatus.CONFIRMED),
@@ -59,8 +59,7 @@ public class BookingService {
             throw BusinessException.conflict("BOOKING_DATE_CONFLICT", "booking.dateConflict");
         }
 
-        // 6. Ümumi məbləği hesabla: pricePerDay × gün sayı + depositAmount
-        long days = ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate());
+        long days = Math.max(1, ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate()));
         BigDecimal totalAmount = BigDecimal.valueOf(listing.getPricePerDay())
                 .multiply(BigDecimal.valueOf(days))
                 .add(BigDecimal.valueOf(listing.getDepositAmount()));
@@ -76,7 +75,9 @@ public class BookingService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        return toResponse(bookingRepository.save(booking));
+        booking = bookingRepository.save(booking);
+        eventPublisher.publishEvent(new BookingStatusChangedEvent(booking));
+        return toResponse(booking);
     }
 
     public BookingResponse confirm(String bookingId, String requesterId) {
@@ -84,7 +85,9 @@ public class BookingService {
         assertOwner(booking, requesterId);
         assertStatus(booking, BookingStatus.REQUESTED);
         booking.setStatus(BookingStatus.CONFIRMED);
-        return toResponse(bookingRepository.save(booking));
+        booking = bookingRepository.save(booking);
+        eventPublisher.publishEvent(new BookingStatusChangedEvent(booking));
+        return toResponse(booking);
     }
 
     public BookingResponse reject(String bookingId, String requesterId) {
@@ -92,23 +95,34 @@ public class BookingService {
         assertOwner(booking, requesterId);
         assertStatus(booking, BookingStatus.REQUESTED);
         booking.setStatus(BookingStatus.REJECTED);
-        return toResponse(bookingRepository.save(booking));
+        booking = bookingRepository.save(booking);
+        eventPublisher.publishEvent(new BookingStatusChangedEvent(booking));
+        return toResponse(booking);
     }
 
     public BookingResponse cancel(String bookingId, String requesterId) {
         Booking booking = findOrThrow(bookingId);
         assertLessee(booking, requesterId);
         assertStatus(booking, BookingStatus.REQUESTED, BookingStatus.CONFIRMED);
+        paymentService.refundEscrow(booking.getId());
         booking.setStatus(BookingStatus.CANCELLED);
-        return toResponse(bookingRepository.save(booking));
+        booking = bookingRepository.save(booking);
+        eventPublisher.publishEvent(new BookingStatusChangedEvent(booking));
+        return toResponse(booking);
     }
 
     public BookingResponse complete(String bookingId, String requesterId) {
         Booking booking = findOrThrow(bookingId);
         assertOwner(booking, requesterId);
         assertStatus(booking, BookingStatus.CONFIRMED);
+        if (!paymentService.hasReleasablePayment(bookingId)) {
+            throw BusinessException.badRequest("BOOKING_NOT_PAID", "booking.notPaid");
+        }
         booking.setStatus(BookingStatus.COMPLETED);
-        return toResponse(bookingRepository.save(booking));
+        booking = bookingRepository.save(booking);
+        paymentService.releaseEscrow(booking.getId());
+        eventPublisher.publishEvent(new BookingStatusChangedEvent(booking));
+        return toResponse(booking);
     }
 
     public List<BookingResponse> getMyBookingsAsLessee(String lesseeId) {
@@ -122,8 +136,6 @@ public class BookingService {
                 .map(this::toResponse)
                 .toList();
     }
-
-    // --- Private helpers ---
 
     private Booking findOrThrow(String id) {
         return bookingRepository.findById(id)

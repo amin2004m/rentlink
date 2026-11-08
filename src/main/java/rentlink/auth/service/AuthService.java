@@ -7,6 +7,7 @@ import rentlink.auth.model.AuthResponse;
 import rentlink.auth.model.LoginRequest;
 import rentlink.auth.model.RegisterRequest;
 import rentlink.auth.model.User;
+import rentlink.auth.model.UserRole;
 import rentlink.auth.repository.UserRepository;
 import rentlink.common.exception.BusinessException;
 
@@ -30,9 +31,10 @@ public class AuthService {
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
-                .roles(List.of("ADMIN"))
+                .roles(List.of(UserRole.USER.name()))
                 .rating(0.0)
                 .isVerified(false)
+                .blocked(false)
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -47,6 +49,10 @@ public class AuthService {
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             throw BusinessException.badRequest("INVALID_CREDENTIALS", "auth.invalidCredentials");
+        }
+
+        if (Boolean.TRUE.equals(user.getBlocked())) {
+            throw BusinessException.forbidden("USER_BLOCKED", "auth.userBlocked");
         }
 
         return buildAuthResponse(user);

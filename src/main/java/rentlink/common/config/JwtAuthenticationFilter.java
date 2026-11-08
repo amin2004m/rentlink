@@ -46,10 +46,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String userId = jwtService.extractUserId(token);
 
-            if (jwtService.isTokenValid(token, userId)
+            if (jwtService.isAccessTokenValid(token, userId)
                     && SecurityContextHolder.getContext().getAuthentication() == null) {
 
-                userRepository.findById(userId).ifPresent(user -> {
+                userRepository.findById(userId)
+                        .filter(user -> !Boolean.TRUE.equals(user.getBlocked()))
+                        .ifPresent(user -> {
 
                     List<GrantedAuthority> authorities = user.getRoles() == null
                             ? List.of()

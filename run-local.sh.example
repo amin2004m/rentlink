@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -e
+
+if ! docker ps --filter name=rentlink-mongo-local --format '{{.Names}}' | grep -q rentlink-mongo-local; then
+  echo "Starting local MongoDB container (rentlink-mongo-local) on port 27018..."
+  docker rm -f rentlink-mongo-local >/dev/null 2>&1 || true
+  docker run -d --name rentlink-mongo-local -p 27018:27017 mongo:7 >/dev/null
+  sleep 3
+fi
+
+export MONGODB_URI="mongodb://localhost:27018/rentlink_local"
+export JWT_SECRET="local-dev-secret-key-change-me-0123456789abcdef"
+export CLOUDINARY_CLOUD_NAME="your-cloud-name"
+export CLOUDINARY_API_KEY="your-api-key"
+export CLOUDINARY_API_SECRET="your-api-secret"
+export STRIPE_SECRET_KEY="sk_test_dummy"
+export STRIPE_WEBHOOK_SECRET="whsec_dummy"
+export BREVO_SMTP_HOST="localhost"
+export BREVO_SMTP_PORT="2525"
+export BREVO_SMTP_USERNAME="dummy"
+export BREVO_SMTP_PASSWORD="dummy"
+export MAIL_FROM_ADDRESS="no-reply@rentlink.local"
+export FIREBASE_CREDENTIALS_JSON="{}"
+export PORT="8080"
+export ADMIN_EMAIL="admin@rentlink.local"
+export ADMIN_PASSWORD="admin123"
+
+./gradlew bootRun

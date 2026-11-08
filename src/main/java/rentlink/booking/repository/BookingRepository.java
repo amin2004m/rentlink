@@ -16,7 +16,6 @@ public interface BookingRepository extends MongoRepository<Booking, String> {
 
     List<Booking> findByOwnerId(String ownerId);
 
-    // Validation for startDate and enDate
     @Query("{ 'listingId': ?0, 'status': { $in: ?1 }, 'startDate': { $lt: ?3 }, 'endDate': { $gt: ?2 } }")
     List<Booking> findOverlappingBookings(String listingId,
                                           List<BookingStatus> activeStatuses,

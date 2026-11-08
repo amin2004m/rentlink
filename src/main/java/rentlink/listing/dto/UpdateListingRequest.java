@@ -2,6 +2,7 @@ package rentlink.listing.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -26,10 +27,10 @@ public class UpdateListingRequest {
     @NotBlank
     String category;
 
-    @Positive
+    @Positive(message = "{listing.price.mustBePositive}")
     double pricePerDay;
 
-    @Positive
+    @PositiveOrZero(message = "{listing.deposit.mustBeNonNegative}")
     double depositAmount;
 
     @NotBlank

@@ -1,6 +1,10 @@
 package rentlink.common.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.MessageSource;
+import org.springframework.context.NoSuchMessageException;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -14,13 +18,27 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
+@RequiredArgsConstructor
 public class GlobalExceptionHandler {
+
+    private final MessageSource messageSource;
+
+    private String resolve(String keyOrMessage) {
+        if (keyOrMessage == null) {
+            return null;
+        }
+        try {
+            return messageSource.getMessage(keyOrMessage, null, LocaleContextHolder.getLocale());
+        } catch (NoSuchMessageException e) {
+            return keyOrMessage;
+        }
+    }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiError> handleBusinessException(BusinessException ex, HttpServletRequest request) {
         ApiError error = ApiError.builder()
                 .errorCode(ex.getErrorCode())
-                .message(ex.getMessage())
+                .message(resolve(ex.getMessage()))
                 .timestamp(Instant.now())
                 .path(request.getRequestURI())
                 .build();
@@ -36,7 +54,7 @@ public class GlobalExceptionHandler {
 
         ApiError error = ApiError.builder()
                 .errorCode("VALIDATION_ERROR")
-                .message("error.validation")
+                .message(resolve("error.validation"))
                 .fieldErrors(fieldErrors)
                 .timestamp(Instant.now())
                 .path(request.getRequestURI())
@@ -48,7 +66,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleBadCredentials(HttpServletRequest request) {
         ApiError error = ApiError.builder()
                 .errorCode("INVALID_CREDENTIALS")
-                .message("auth.invalidCredentials")
+                .message(resolve("auth.invalidCredentials"))
                 .timestamp(Instant.now())
                 .path(request.getRequestURI())
                 .build();
@@ -59,7 +77,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleAccessDenied(HttpServletRequest request) {
         ApiError error = ApiError.builder()
                 .errorCode("FORBIDDEN")
-                .message("error.forbidden")
+                .message(resolve("error.forbidden"))
                 .timestamp(Instant.now())
                 .path(request.getRequestURI())
                 .build();
@@ -70,7 +88,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleGenericException(Exception ex, HttpServletRequest request) {
         ApiError error = ApiError.builder()
                 .errorCode("INTERNAL_ERROR")
-                .message("error.internal")
+                .message(resolve("error.internal"))
                 .timestamp(Instant.now())
                 .path(request.getRequestURI())
                 .build();

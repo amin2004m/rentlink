@@ -34,6 +34,8 @@ public class User {
     List<String> roles;
     Double rating;
     Boolean isVerified;
+    Boolean blocked;
+    String profileImageUrl;
     LocalDateTime createdAt;
 
 }

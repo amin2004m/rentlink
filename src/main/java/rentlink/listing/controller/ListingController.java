@@ -30,7 +30,7 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("api/listings")
+@RequestMapping("/api/listings")
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class ListingController {
     ListingService listingService;
@@ -38,6 +38,11 @@ public class ListingController {
     @GetMapping
     public List<ListingResponse> getAllListings() {
         return listingService.getAllListings();
+    }
+
+    @GetMapping("/my")
+    public List<ListingResponse> getMyListings(@AuthenticationPrincipal User currentUser) {
+        return listingService.getMyListings(currentUser.getId());
     }
 
     @GetMapping("/{id}")
